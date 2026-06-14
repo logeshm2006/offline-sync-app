@@ -14,6 +14,20 @@ registerSW({
   }
 })
 
+// Fallback explicit registration to ensure a runtime registration
+// at the root path '/sw.js' for PWABuilder/Puppeteer detection.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => {
+        console.log('Service worker registered (fallback):', reg.scope)
+      })
+      .catch(err => {
+        console.error('Fallback service worker registration failed:', err)
+      })
+  })
+}
+
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
