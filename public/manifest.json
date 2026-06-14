@@ -1,0 +1,13 @@
+{
+  "background_color": "#ffffff",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "offline-sync-lq2y54gt4-logeshmadhavan2006-9470s-projects.vercel",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "offline-sync-lq2y54gt4-logeshmadhavan2006-9470s-projects.vercel",
+  "start_url": "/",
+  "theme_color": "#ffffff",
+  "id": "offline-sync-app",
+  "description": "App which syncs local saved offline data to cloud database"
+}
