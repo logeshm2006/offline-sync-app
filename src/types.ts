@@ -16,4 +16,8 @@ export interface StoredGrievance extends Grievance {
   id: number
   timestamp: number
   synced: boolean
+  syncing?: boolean
+  status?: 'pending' | 'synced' | 'failed'
+  failed?: boolean
+  error?: string
 }

@@ -7,6 +7,7 @@ export default function StatusCard() {
   const [lastSync, setLastSync] = useState<string | null>(null)
   const [unsynced, setUnsynced] = useState<number>(0)
   const [syncing, setSyncing] = useState<boolean>(false)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
 
   async function refreshUnsynced() {
     try {
@@ -45,6 +46,11 @@ export default function StatusCard() {
       refreshUnsynced()
     }
 
+    function onBeforeInstall(e: any) {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+
     function onUpdated() {
       refreshUnsynced()
     }
@@ -52,6 +58,7 @@ export default function StatusCard() {
     window.addEventListener('online', onOnline)
     window.addEventListener('offline', onOffline)
     window.addEventListener('grievance:added', onAdded)
+    window.addEventListener('beforeinstallprompt', onBeforeInstall as any)
     window.addEventListener('grievance:updated', onUpdated)
     window.addEventListener('sync:start', onSyncStart)
     window.addEventListener('sync:end', onSyncEnd)
@@ -61,6 +68,7 @@ export default function StatusCard() {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
       window.removeEventListener('grievance:added', onAdded)
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall as any)
       window.removeEventListener('grievance:updated', onUpdated)
       window.removeEventListener('sync:start', onSyncStart)
       window.removeEventListener('sync:end', onSyncEnd)
@@ -110,6 +118,24 @@ export default function StatusCard() {
             >
               Cloud Database
             </button>
+
+            {deferredPrompt && (
+              <button
+                className="btn-gradient"
+                onClick={async () => {
+                  try {
+                    deferredPrompt.prompt()
+                    const choice = await deferredPrompt.userChoice
+                    console.log('PWA install choice', choice)
+                    setDeferredPrompt(null)
+                  } catch (err) {
+                    console.error('Install prompt failed', err)
+                  }
+                }}
+              >
+                Install App
+              </button>
+            )}
           </div>
         </div>
       </div>
