@@ -64,6 +64,10 @@ export async function addGrievance(g: NewGrievance): Promise<StoredGrievance> {
       createdAt: g.createdAt ?? new Date().toISOString(),
       timestamp: Date.now(),
       synced: false,
+      syncing: false,
+      status: 'pending',
+      failed: false,
+      error: undefined,
     }
     const req = store.add(record as any)
     req.onsuccess = () => {

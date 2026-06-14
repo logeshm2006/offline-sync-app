@@ -25,6 +25,15 @@ node index.js
 
 Make sure `server/index.js` is the main entry file (package.json `main` points to `index.js`).
 
+### Deploying to Render / Railway
+
+- Set the **Root Directory** to `server`.
+- Build command: `npm install`
+- Start command: `node index.js`
+- Set environment variables: `MONGO_URI` (required), optionally `PORT`.
+
+The server listens on `process.env.PORT || 10000` and binds to `0.0.0.0` for cloud hosts.
+
 ## API
 
 POST /api/grievances

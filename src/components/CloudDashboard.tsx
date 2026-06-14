@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react'
+import { API_URL } from '../services/config'
+import { getAllGrievances } from '../services/db'
 
 type CloudGrievance = {
   _id?: string
@@ -11,7 +13,7 @@ type CloudGrievance = {
   updatedAt?: string
 }
 
-const API_URL = 'http://localhost:5000/api/grievances'
+
 
 export default function CloudDashboard() {
   const [items, setItems] = useState<CloudGrievance[]>([])
@@ -34,6 +36,16 @@ export default function CloudDashboard() {
       setError(String(err?.message ?? err))
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadLocalPending() {
+    try {
+      const all = await getAllGrievances()
+      const pending = all.filter((g) => g.status !== 'synced')
+      return pending
+    } catch (e) {
+      return []
     }
   }
 
@@ -85,15 +97,52 @@ export default function CloudDashboard() {
                       <td className="align-top max-w-xl break-words">{g.description ?? '-'}</td>
                       <td className="align-top">{g.priority ?? '-'}</td>
                       <td className="align-top">{g.createdAt ? new Date(g.createdAt).toLocaleString() : '-'}</td>
-                      <td className="align-top">{g.updatedAt ? new Date(g.updatedAt).toLocaleString() : '-'}</td>
+                      <td className="align-top">Synced</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              
+              {/* Local pending items */}
+              <div className="mt-6">
+                <h3 className="text-lg font-medium mb-2">Local Pending Items</h3>
+                <LocalPendingList />
+              </div>
             </div>
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function LocalPendingList() {
+  const [items, setItems] = useState<any[]>([])
+
+  useEffect(() => {
+    let mounted = true
+    getAllGrievances().then((all) => {
+      if (!mounted) return
+      setItems(all.filter((g) => g.status !== 'synced'))
+    })
+    return () => { mounted = false }
+  }, [])
+
+  if (items.length === 0) return <div className="text-slate-400">No local pending items.</div>
+
+  return (
+    <div className="space-y-2 max-h-56 overflow-auto">
+      {items.map((g) => (
+        <div key={g.id} className="p-2 bg-white/3 rounded flex items-start justify-between">
+          <div>
+            <div className="font-semibold text-sm">{g.village} — {g.category}</div>
+            <div className="text-xs text-slate-400">{g.description}</div>
+          </div>
+          <div className="ml-4">
+            <span className="badge badge--pending">Pending</span>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

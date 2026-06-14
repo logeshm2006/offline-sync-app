@@ -1,6 +1,5 @@
 import { getAllGrievances, updateGrievance } from './db'
-
-const API_URL = 'http://localhost:4000/api/grievances' // ✅ API endpoint
+import { API_URL } from './config'
 
 let isSyncing = false
 
@@ -11,7 +10,7 @@ export async function syncPending() {
 
   try {
     const all = await getAllGrievances()
-    const pending = all.filter((g) => !g.synced && !g.syncing)
+    const pending = all.filter((g) => (g.status !== 'synced') && !g.syncing)
 
     if (pending.length === 0) {
       isSyncing = false
@@ -21,7 +20,7 @@ export async function syncPending() {
     for (const g of pending) {
       const id = g.id as number
       try {
-        await updateGrievance(id, { syncing: true })
+        await updateGrievance(id, { syncing: true, status: 'pending' })
 
         const { syncing, synced, ...sendable } = g as any
         const body = JSON.stringify(sendable)
@@ -47,7 +46,7 @@ export async function syncPending() {
 
             if (resp.ok) {
               const data = await resp.json()
-              await updateGrievance(id, { synced: true, syncing: false })
+              await updateGrievance(id, { synced: true, syncing: false, status: 'synced' })
               console.log(`[sync] Success id=${id}`, data)
               window.dispatchEvent(new CustomEvent('sync:success', { detail: { id, data } }))
               success = true
@@ -57,7 +56,7 @@ export async function syncPending() {
               console.warn(`[sync] Failed id=${id} status=${status} body=${text}`)
               // Do not retry for validation errors (400)
               if (status === 400) {
-                await updateGrievance(id, { synced: false, syncing: false, failed: true, error: 'Validation failed' })
+                await updateGrievance(id, { synced: false, syncing: false, failed: true, status: 'failed', error: 'Validation failed' })
                 window.dispatchEvent(new CustomEvent('sync:failure', { detail: { id, status, body: text } }))
                 break
               }
@@ -72,13 +71,13 @@ export async function syncPending() {
                 }
 
                 // max attempts reached for server error
-                await updateGrievance(id, { synced: false, syncing: false, failed: true, error: `Server error ${status}` })
+                await updateGrievance(id, { synced: false, syncing: false, failed: true, status: 'failed', error: `Server error ${status}` })
                 window.dispatchEvent(new CustomEvent('sync:failure', { detail: { id, status, body: text } }))
                 break
               }
 
               // Other client errors (4xx besides 400) - do not retry
-              await updateGrievance(id, { synced: false, syncing: false, failed: true, error: `Request failed ${status}` })
+              await updateGrievance(id, { synced: false, syncing: false, failed: true, status: 'failed', error: `Request failed ${status}` })
               window.dispatchEvent(new CustomEvent('sync:failure', { detail: { id, status, body: text } }))
               break
             }
@@ -94,9 +93,8 @@ export async function syncPending() {
               await new Promise((r) => setTimeout(r, 500 * attempt))
               continue
             }
-
             // Max attempts exhausted for network errors
-            await updateGrievance(id, { synced: false, syncing: false, failed: true, error: String(err?.message ?? err) })
+            await updateGrievance(id, { synced: false, syncing: false, failed: true, status: 'failed', error: String(err?.message ?? err) })
             window.dispatchEvent(new CustomEvent('sync:failure', { detail: { id, error: String(err?.message ?? err) } }))
             break
           }
