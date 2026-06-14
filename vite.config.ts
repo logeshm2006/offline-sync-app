@@ -25,16 +25,8 @@ export default defineConfig({
       workbox: {
         runtimeCaching: [
           {
-            urlPattern: /\/api\/(.*)/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 100, maxAgeSeconds: 24 * 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] }
-            }
-          },
-          {
-            urlPattern: /\/.*\.(?:js|css|png|jpg|svg|webp)/,
+            // Cache only built static assets (JS/CSS/images) - do not cache API calls
+            urlPattern: /\/.*\.(?:js|css|png|jpg|svg|webp|woff2?)$/,
             handler: 'StaleWhileRevalidate',
             options: { cacheName: 'assets-cache', expiration: { maxEntries: 200 } }
           }
