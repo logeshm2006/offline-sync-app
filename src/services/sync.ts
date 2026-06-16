@@ -4,12 +4,15 @@ import { API_URL } from './config'
 let isSyncing = false
 
 export async function syncPending() {
-  if (isSyncing) return
+  // Prevent overlapping sync cycles
+  if (isSyncing || !navigator.onLine) return
+
   isSyncing = true
   window.dispatchEvent(new CustomEvent('sync:start'))
 
   try {
     const all = await getAllGrievances()
+    // Find items that are not synced and not currently being synced
     const pending = all.filter((g) => (g.status !== 'synced') && !g.syncing)
 
     if (pending.length === 0) {
@@ -17,98 +20,79 @@ export async function syncPending() {
       return
     }
 
-    for (const g of pending) {
-      const id = g.id as number
-      try {
-        await updateGrievance(id, { syncing: true, status: 'pending' })
+    console.log(`[Sync] Found ${pending.length} pending items. Starting sync...`)
 
-        const { syncing, synced, ...sendable } = g as any
-        const body = JSON.stringify(sendable)
+    // Processing in small batches of 3 to improve throughput without overloading
+    const BATCH_SIZE = 3
+    for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+      const batch = pending.slice(i, i + BATCH_SIZE)
 
-        console.log('Sending:', body)
-        window.dispatchEvent(new CustomEvent('sync:request', { detail: { id, body } }))
+      // Sync batch in parallel
+      await Promise.all(batch.map(async (g) => {
+        const id = g.id as number
+        try {
+          await updateGrievance(id, { syncing: true, status: 'pending' })
 
-        const maxAttempts = 3
-        let attempt = 0
-        let success = false
+          const { syncing, synced, ...sendable } = g as any
+          const body = JSON.stringify(sendable)
 
-        while (attempt < maxAttempts && !success) {
-          attempt += 1
-          try {
-            const resp = await fetch(API_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body,
-            })
+          window.dispatchEvent(new CustomEvent('sync:request', { detail: { id, body } }))
 
-            console.log('Response:', resp)
-            window.dispatchEvent(new CustomEvent('sync:response', { detail: { id, status: resp.status } }))
+          const maxAttempts = 3
+          let attempt = 0
+          let success = false
 
-            if (resp.ok) {
-              const data = await resp.json()
-              await updateGrievance(id, { synced: true, syncing: false, status: 'synced' })
-              console.log(`[sync] Success id=${id}`, data)
-              window.dispatchEvent(new CustomEvent('sync:success', { detail: { id, data } }))
-              success = true
-            } else {
-              const status = resp.status
-              const text = await resp.text()
-              console.warn(`[sync] Failed id=${id} status=${status} body=${text}`)
-              // Do not retry for validation errors (400)
-              if (status === 400) {
-                await updateGrievance(id, { synced: false, syncing: false, failed: true, status: 'failed', error: 'Validation failed' })
-                window.dispatchEvent(new CustomEvent('sync:failure', { detail: { id, status, body: text } }))
-                break
-              }
+          while (attempt < maxAttempts && !success) {
+            attempt += 1
+            try {
+              const resp = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body,
+              })
 
-              // Retry only for server errors >= 500
-              if (status >= 500) {
+              if (resp.ok) {
+                const data = await resp.json()
+                await updateGrievance(id, { synced: true, syncing: false, status: 'synced' })
+                window.dispatchEvent(new CustomEvent('sync:success', { detail: { id, data } }))
+                success = true
+              } else {
+                const status = resp.status
+                if (status === 400 || (status >= 401 && status < 500)) {
+                  // Client errors - mark as failed and don't retry
+                  await updateGrievance(id, { synced: false, syncing: false, failed: true, status: 'failed', error: `Request failed (${status})` })
+                  window.dispatchEvent(new CustomEvent('sync:failure', { detail: { id, status } }))
+                  break
+                }
+
+                // Server errors - retry with backoff
                 if (attempt < maxAttempts) {
-                  console.log(`[sync] Retrying id=${id} attempt=${attempt + 1}`)
-                  window.dispatchEvent(new CustomEvent('sync:retry', { detail: { id, attempt: attempt + 1 } }))
-                  await new Promise((r) => setTimeout(r, 500 * attempt))
+                  await new Promise((r) => setTimeout(r, 1000 * attempt)) // 1s, 2s retry
                   continue
                 }
 
-                // max attempts reached for server error
                 await updateGrievance(id, { synced: false, syncing: false, failed: true, status: 'failed', error: `Server error ${status}` })
-                window.dispatchEvent(new CustomEvent('sync:failure', { detail: { id, status, body: text } }))
-                break
+                window.dispatchEvent(new CustomEvent('sync:failure', { detail: { id, status } }))
               }
-
-              // Other client errors (4xx besides 400) - do not retry
-              await updateGrievance(id, { synced: false, syncing: false, failed: true, status: 'failed', error: `Request failed ${status}` })
-              window.dispatchEvent(new CustomEvent('sync:failure', { detail: { id, status, body: text } }))
-              break
+            } catch (err) {
+              // Network error
+              if (attempt < maxAttempts) {
+                await new Promise((r) => setTimeout(r, 1000 * attempt))
+                continue
+              }
+              await updateGrievance(id, { synced: false, syncing: false, failed: true, status: 'failed', error: 'Network Error' })
+              window.dispatchEvent(new CustomEvent('sync:failure', { detail: { id, error: 'Network Error' } }))
             }
-
-          } catch (err: any) {
-            // Network or fetch error - retry
-            console.error(`[sync] Network/Error id=${id} attempt=${attempt}`, err)
-            window.dispatchEvent(new CustomEvent('sync:error', { detail: { id, message: String(err?.message ?? err), attempt } }))
-
-            if (attempt < maxAttempts) {
-              console.log(`[sync] Retrying id=${id} attempt=${attempt + 1}`)
-              window.dispatchEvent(new CustomEvent('sync:retry', { detail: { id, attempt: attempt + 1 } }))
-              await new Promise((r) => setTimeout(r, 500 * attempt))
-              continue
-            }
-            // Max attempts exhausted for network errors
-            await updateGrievance(id, { synced: false, syncing: false, failed: true, status: 'failed', error: String(err?.message ?? err) })
-            window.dispatchEvent(new CustomEvent('sync:failure', { detail: { id, error: String(err?.message ?? err) } }))
-            break
           }
+        } catch (err) {
+          console.error(`[Sync] Critical error for ID ${id}`, err)
+          await updateGrievance(id, { syncing: false })
         }
-
-      } catch (err) {
-        await updateGrievance(g.id as number, { syncing: false })
-        console.error(`[sync] Error id=${g.id}`, err)
-        window.dispatchEvent(new CustomEvent('sync:error', { detail: { id: g.id, message: String((err as any)?.message ?? err) } }))
-      }
+      }))
     }
 
   } catch (err) {
-    console.error('[sync] Failed to sync pending', err)
+    console.error('[Sync] Global sync failure', err)
   } finally {
     isSyncing = false
     window.dispatchEvent(new CustomEvent('sync:end'))
@@ -117,23 +101,22 @@ export async function syncPending() {
 
 let intervalId: any = null
 
-export function startAutoSync(intervalMs = 30000) {
-  // run once on startup
+export function startAutoSync(intervalMs = 3000) { // Reduced from 30s to 3s as requested
+  // Initial run
   syncPending().catch(() => {})
 
-  // run when network becomes online (attach handler directly)
-  window.addEventListener('online', syncPending)
+  // Re-sync on network restoration
+  window.addEventListener('online', () => syncPending())
 
   if (intervalId) clearInterval(intervalId)
 
-  // periodic retry every `intervalMs` while online
+  // Polling sync every 3 seconds
   intervalId = setInterval(() => {
-    if (navigator.onLine) syncPending().catch(() => {})
+    syncPending().catch(() => {})
   }, intervalMs)
 }
 
 export function stopAutoSync() {
   if (intervalId) clearInterval(intervalId)
   intervalId = null
-  window.removeEventListener('online', syncPending)
 }

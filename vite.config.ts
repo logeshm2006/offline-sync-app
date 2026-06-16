@@ -7,11 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: false,
-      filename: 'sw.js',
-
-      includeAssets: ['favicon.svg', 'robots.txt', 'icon-192.png', 'icon-512.png'],
-
+      injectRegister: false, // We register manually in main.tsx
       manifest: {
         name: 'Grievance Redressal System',
         short_name: 'GrievanceApp',
@@ -19,35 +15,51 @@ export default defineConfig({
         theme_color: '#10b981',
         background_color: '#000000',
         display: 'standalone',
-        start_url: '/',
-        scope: '/', 
         orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
+          {
+            src: 'icon-192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'icon-512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          }
         ]
       },
-
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'], // 🔥 FULL CACHE
-        navigateFallback: '/index.html', // 🔥 FIX BLANK SCREEN (VERY IMPORTANT)
-
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
           {
-            // API requests → do NOT fully cache (important for sync)
             urlPattern: /^https:\/\/.*\/api\/.*/,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
-              networkTimeoutSeconds: 5
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 Days
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
             }
           }
-        ]
+        ],
+        navigateFallback: 'index.html',
+        cleanupOutdatedCaches: true
+      },
+      devOptions: {
+        enabled: true
       }
     })
   ],
-
-  server: {
-    port: 5173
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    emptyOutDir: true
   }
 })

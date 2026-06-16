@@ -58,7 +58,7 @@
 .log-line--error { background: linear-gradient(90deg, rgba(239,68,68,0.03), transparent) }
 
 /* Smooth entrance */
-.fade-in { animation: fadeIn .36s ease both }
+.fade-in, .animate-fade-in { animation: fadeIn .36s ease both }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: translateY(0) } }
 
 .input {
