@@ -20,31 +20,42 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: 'icon-192.png',
+            src: '/icon-192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'icon-512.png',
+            src: '/icon-512.png',
             sizes: '512x512',
             type: 'image/png'
           }
         ]
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // Avoid aggressive API caching: only cache static assets (images/fonts)
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/.*\/api\/.*/,
-            handler: 'NetworkFirst',
+            urlPattern: /\.(?:png|jpg|jpeg|svg|webp|gif)$/,
+            handler: 'CacheFirst',
             options: {
-              cacheName: 'api-cache',
+              cacheName: 'images-cache',
               expiration: {
-                maxEntries: 50,
+                maxEntries: 60,
                 maxAgeSeconds: 60 * 60 * 24 * 30 // 30 Days
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
+              }
+            }
+          },
+          {
+            urlPattern: /\.(?:woff2?|ttf|eot)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fonts-cache',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
               }
             }
           }

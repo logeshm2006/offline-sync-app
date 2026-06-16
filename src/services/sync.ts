@@ -101,7 +101,7 @@ export async function syncPending() {
 
 let intervalId: any = null
 
-export function startAutoSync(intervalMs = 3000) { // Reduced from 30s to 3s as requested
+export function startAutoSync(intervalMs = 15000) { // Default polling interval: 15s (safe, conservative)
   // Initial run
   syncPending().catch(() => {})
 
