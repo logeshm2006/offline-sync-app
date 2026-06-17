@@ -3,6 +3,7 @@
 EdgeSync is a production-ready PWA and Android-capable app that enables offline data collection and reliable sync when connectivity is restored. It uses IndexedDB for local storage, a Service Worker for offline caching, and a Capacitor-wrapped WebView for Android APK builds.
 
 Live Demo: https://offline-sync-app-logeshmadhavan2006-9470s-projects.vercel.app/
+Download Latest APK : https://github.com/logeshm2006/offline-sync-app/releases/download/v1.0/app-debug.apk
 
 Features
 - Offline data collection with IndexedDB
